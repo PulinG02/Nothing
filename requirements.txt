@@ -1,5 +1,1 @@
-Flask
-Flask-Session
-werkzeug
-psutil
-requests
+pyTelegramBotAPI
