@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel | NpcHosting</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+<style>
+  .top { background: var(--surface); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 20; }
+  .top .wrap { display: flex; align-items: center; justify-content: space-between; height: 64px; gap: 12px; }
+  .top .who { color: var(--ink-3); font-size: 14px; max-width: 28vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  main.wrap { padding-top: 20px; padding-bottom: 56px; }
+
+  .status { display: grid; gap: 14px; padding: 18px 20px; margin-bottom: 20px; }
+  @media (min-width: 860px) { .status { grid-template-columns: 1fr auto; align-items: center; gap: 28px; } }
+  .status-top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .status-top .beat-box { flex: 1 1 140px; max-width: 280px; min-width: 120px; }
+  .facts { display: flex; flex-wrap: wrap; gap: 4px 20px; margin-top: 10px; font-size: 14px; color: var(--ink-3); }
+  .facts b { color: var(--ink); font-weight: 600; }
+  .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  @media (min-width: 520px) { .controls { grid-template-columns: repeat(4, auto); } }
+
+  .cmd { display: flex; gap: 8px; margin-top: 12px; }
+  .cmd .prompt { position: relative; flex: 1; }
+  .cmd .prompt span { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--ink-3); font-family: var(--mono); }
+  .cmd .prompt input { padding-left: 28px; font-family: var(--mono); font-size: 15px; }
+
+  .metrics { display: grid; grid-template-columns: repeat(2, 1fr); margin-top: 16px; }
+  @media (min-width: 720px) { .metrics { grid-template-columns: repeat(5, 1fr); } }
+  .metric { padding: 14px 16px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); min-width: 0; }
+  .metric:nth-child(2n) { border-right: 0; }
+  .metric:last-child { grid-column: 1 / -1; border-bottom: 0; border-right: 0; }
+  @media (min-width: 720px) { .metric, .metric:nth-child(2n) { border-right: 1px solid var(--line); border-bottom: 0; } .metric:last-child { grid-column: auto; border-right: 0; } }
+  .metric .l { font-size: 13px; color: var(--ink-3); }
+  .metric .v { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; margin-top: 2px; }
+  .metric .v.addr { font-size: 13px; font-weight: 500; font-family: var(--mono); letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .files-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+  .crumbs { font-family: var(--mono); font-size: 14px; word-break: break-all; }
+  .crumbs a { color: var(--accent-deep); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+  .file { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .file:last-child { border-bottom: 0; }
+  .file.dir { cursor: pointer; }
+  .file:hover { background: #f6f7f9; }
+  .file .name { flex: 1; min-width: 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file .name.is-dir { color: var(--accent-deep); font-weight: 600; }
+  .file .meta { color: var(--ink-3); font-size: 13px; white-space: nowrap; }
+  .file .meta.when { display: none; }
+  @media (min-width: 640px) { .file .meta.when { display: block; min-width: 130px; } }
+  .file .kind { width: 28px; height: 22px; border-radius: 4px; background: var(--bg); color: var(--ink-2); font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; font-family: var(--mono); }
+  .file .kind.dir { background: var(--warn-wash); color: var(--warn); }
+  .file .kind.zip { background: var(--accent-wash); color: var(--accent-deep); }
+  .menu { position: relative; }
+  .menu-list { position: absolute; right: 0; top: calc(100% + 4px); z-index: 30; min-width: 150px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 10px; padding: 4px; display: none; box-shadow: 0 10px 30px rgba(15,20,30,.15); }
+  .menu-list.show { display: block; }
+  .menu-list button { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 10px 12px; border-radius: 6px; font-size: 15px; }
+  .menu-list button:hover { background: var(--bg); }
+  .menu-list button.bad { color: var(--bad); }
+  .empty { padding: 36px 20px; text-align: center; color: var(--ink-3); }
+
+  .two { display: grid; gap: 16px; }
+  @media (min-width: 760px) { .two { grid-template-columns: 1fr 1fr; } }
+  .narrow { max-width: 460px; }
+  .kv { display: grid; gap: 8px; font-size: 15px; color: var(--ink-2); margin-top: 6px; }
+</style>
+</head>
+<body>
+
+<div class="toasts" id="toastContainer" aria-live="polite"></div>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="/">
+      <svg viewBox="0 0 34 20" aria-hidden="true"><path d="M1 10h9l3-7 5 14 3-7h12"/></svg>
+      <span>npc<b>hosting</b></span>
+    </a>
+    <div class="row" style="gap:14px;flex-wrap:nowrap">
+      <span class="who">{{ username }}</span>
+      <a class="btn btn-quiet btn-sm" href="/logout">Sign out</a>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+{% if current_server %}
+
+  <section class="panel status" aria-label="Server status">
+    <div>
+      <div class="status-top">
+        <span id="statusDisplay" class="pill pill-off">Stopped</span>
+        <div class="beat-box">
+          <svg class="beat" id="beat" viewBox="0 0 300 36" preserveAspectRatio="none" aria-hidden="true">
+            <path class="beat-base" d="M0 18H112l10-13 12 26 10-13H300"/>
+            <path class="beat-live" pathLength="300" d="M0 18H112l10-13 12 26 10-13H300"/>
+          </svg>
+        </div>
+      </div>
+      <div class="facts">
+        <span>ID <b class="mono">{{ current_server.server_id[:8] }}</b></span>
+        <span>CPU limit <b>{{ current_server.cpu_limit | default(80) }}%</b></span>
+        <span>Expires <b>{{ current_server.expiry[:10] if current_server.expiry else 'N/A' }}</b></span>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="btn btn-ok" onclick="runServer()">Start</button>
+      <button class="btn btn-danger" onclick="stopServer()">Stop</button>
+      <button class="btn btn-quiet" onclick="restartServer()">Restart</button>
+      <button class="btn btn-quiet" onclick="clearLogs()">Clear log</button>
+    </div>
+  </section>
+
+  <div class="tabs" role="tablist" aria-label="Panel sections">
+    <button class="tab" role="tab" id="tab-console" aria-selected="true" onclick="showTab('console')">Console</button>
+    <button class="tab" role="tab" id="tab-files" aria-selected="false" onclick="showTab('files')">Files</button>
+    <button class="tab" role="tab" id="tab-github" aria-selected="false" onclick="showTab('github')">GitHub</button>
+    <button class="tab" role="tab" id="tab-startup" aria-selected="false" onclick="showTab('startup')">Startup</button>
+    <button class="tab" role="tab" id="tab-profile" aria-selected="false" onclick="showTab('profile')">Account</button>
+  </div>
+
+  <!-- Console -->
+  <div id="console-tab" role="tabpanel">
+    <div class="console" id="logs" tabindex="0" aria-label="Bot output">Ready. Press Start to run your bot.</div>
+    <div class="cmd">
+      <div class="prompt"><span>$</span><input class="input" type="text" id="cmdInput" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Run a command" aria-label="Command" onkeydown="if(event.key==='Enter')sendCmd()"></div>
+      <button class="btn btn-primary" onclick="sendCmd()">Send</button>
+    </div>
+    <div class="panel metrics">
+      <div class="metric"><div class="l">CPU</div><div class="v" id="cpuDisplay">0%</div></div>
+      <div class="metric"><div class="l">RAM</div><div class="v" id="ramDisplay">0 MB</div></div>
+      <div class="metric"><div class="l">Network in</div><div class="v" id="netInDisplay">0 KB</div></div>
+      <div class="metric"><div class="l">Network out</div><div class="v" id="netOutDisplay">0 KB</div></div>
+      <div class="metric"><div class="l">Address</div><div class="v addr" id="serverAddr"></div></div>
+    </div>
+  </div>
+
+  <!-- Files -->
+  <div id="files-tab" class="hidden" role="tabpanel">
+    <div class="files-bar">
+      <div class="crumbs" id="currentPathDisplay">/</div>
+      <div class="row" style="gap:8px">
+        <input type="file" id="fileInput" class="hidden" onchange="uploadFile()">
+        <button class="btn btn-primary btn-sm" onclick="document.getElementById('fileInput').click()">Upload file</button>
+        <button class="btn btn-quiet btn-sm" onclick="createFolder()">New folder</button>
+        <button class="btn btn-quiet btn-sm" onclick="createFile()">New file</button>
+      </div>
+    </div>
+    <div class="panel" id="fileList"><div class="empty">Loading files...</div></div>
+    <p class="muted" style="font-size:13px;margin-top:8px">Uploads can be up to 50 MB.</p>
+  </div>
+
+  <!-- GitHub -->
+  <div id="github-tab" class="hidden" role="tabpanel">
+    <div class="two">
+      <section class="panel"><div class="panel-body">
+        <h3 style="font-size:18px;font-weight:700">Public repository</h3>
+        <p class="muted" style="margin:2px 0 16px;font-size:14px">No token needed.</p>
+        <label class="field"><span>Repository URL</span>
+          <input class="input" type="url" id="publicRepoUrl" autocapitalize="none" placeholder="https://github.com/user/repo">
+        </label>
+        <button class="btn btn-primary btn-block" onclick="deployRepo(false)">Deploy repository</button>
+      </div></section>
+      <section class="panel"><div class="panel-body">
+        <h3 style="font-size:18px;font-weight:700">Private repository</h3>
+        <p class="muted" style="margin:2px 0 16px;font-size:14px">Needs a GitHub access token.</p>
+        <label class="field"><span>Repository URL</span>
+          <input class="input" type="url" id="privateRepoUrl" autocapitalize="none" placeholder="https://github.com/user/repo">
+        </label>
+        <label class="field"><span>Access token</span>
+          <input class="input mono" type="password" id="accessToken" autocomplete="off" placeholder="ghp_...">
+        </label>
+        <button class="btn btn-primary btn-block" onclick="deployRepo(true)">Deploy private repository</button>
+      </div></section>
+    </div>
+    <section class="panel" style="margin-top:16px">
+      <div class="panel-head"><h3>Deployment log</h3><button class="btn btn-quiet btn-sm" onclick="clearGitLogs()">Clear</button></div>
+      <div class="panel-body"><div class="console small" id="gitLogs" tabindex="0">Ready to deploy.</div></div>
+    </section>
+  </div>
+
+  <!-- Startup -->
+  <div id="startup-tab" class="hidden" role="tabpanel">
+    <section class="panel narrow"><div class="panel-body">
+      <h3 style="font-size:18px;font-weight:700;margin-bottom:16px">Startup</h3>
+      <label class="field"><span>Main file</span>
+        <input class="input mono" type="text" id="mainFileInput" value="{{ current_server.main_file | default('main.py') }}">
+        <small>The file that runs when you press Start.</small>
+      </label>
+      <label class="field"><span>Requirements file</span>
+        <input class="input mono" type="text" id="requirementsInput" value="{{ current_server.requirements_file | default('requirements.txt') }}">
+        <small>Packages in this file are installed before the bot starts. Leave it empty to skip.</small>
+      </label>
+      <button class="btn btn-primary" onclick="saveStartup()">Save startup</button>
+    </div></section>
+  </div>
+
+  <!-- Account -->
+  <div id="profile-tab" class="hidden" role="tabpanel">
+    <section class="panel narrow"><div class="panel-body">
+      <h3 style="font-size:18px;font-weight:700;margin-bottom:16px">Change password</h3>
+      <label class="field"><span>Username</span>
+        <input class="input" type="text" id="newUsername" value="{{ username }}" readonly>
+      </label>
+      <label class="field"><span>Current password</span>
+        <input class="input" type="password" id="currentPassword" autocomplete="current-password">
+      </label>
+      <label class="field"><span>New password</span>
+        <input class="input" type="password" id="newPassword" autocomplete="new-password">
+        <small>At least 4 characters.</small>
+      </label>
+      <label class="field"><span>Confirm new password</span>
+        <input class="input" type="password" id="confirmPassword" autocomplete="new-password">
+      </label>
+      <button class="btn btn-primary btn-block" onclick="updateCredentials()">Change password</button>
+
+      <div style="border-top:1px solid var(--line);margin-top:24px;padding-top:18px">
+        <h4 style="font-size:15px;font-weight:700">Need help?</h4>
+        <p class="muted" style="font-size:14px;margin:2px 0 12px">Message the developer on Telegram.</p>
+        <a class="btn btn-quiet btn-sm" href="https://t.me/npchosting_codex" target="_blank" rel="noopener">Open Telegram support</a>
+      </div>
+    </div></section>
+  </div>
+
+{% else %}
+  <div class="empty" style="padding:80px 20px">No server found for this account.</div>
+{% endif %}
+</main>
+
+<div id="editModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="editTitle">
+  <div class="modal-card">
+    <div class="modal-head"><h3 id="editTitle"></h3><button class="btn btn-quiet btn-sm" onclick="closeEdit()">Close</button></div>
+    <textarea id="editor" class="editor" spellcheck="false" aria-label="File contents"></textarea>
+    <div class="modal-foot"><button class="btn btn-primary" onclick="saveFileContent()">Save file</button></div>
+  </div>
+</div>
+
+<script>
+  let currentServerId = '{{ current_server.server_id if current_server else "" }}';
+  let editingFile = null;
+  let activeTab = 'console';
+  let activeToast = null;
+  let currentFolder = '';
+  const MAX_FILE_SIZE = 50 * 1024 * 1024;
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  if ($('serverAddr')) $('serverAddr').textContent = window.location.href;
+
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.menu')) document.querySelectorAll('.menu-list').forEach(m => m.classList.remove('show'));
+  });
+
+  /* ---------- toasts ---------- */
+  function removeToast(t) { t.classList.add('out'); setTimeout(() => { t.remove(); if (activeToast === t) activeToast = null; }, 200); }
+  function showToast(message, type = 'info', duration = 4000) {
+    const box = $('toastContainer');
+    if (activeToast && type !== 'info') {
+      const t = activeToast; activeToast = null;
+      t.className = 'toast ' + type;
+      t.querySelector('.lead').outerHTML = '<span class="mark"></span>';
+      t.querySelector('.msg').textContent = message;
+      if (duration > 0) setTimeout(() => removeToast(t), duration);
+      return;
+    }
+    const t = document.createElement('div');
+    t.className = 'toast ' + type;
+    t.innerHTML = (type === 'info' ? '<span class="spin lead"></span>' : '<span class="mark"></span>') +
+      '<span class="msg"></span><button type="button" aria-label="Dismiss">&times;</button>';
+    t.querySelector('.msg').textContent = message;
+    t.querySelector('button').onclick = () => removeToast(t);
+    box.appendChild(t);
+    if (type === 'info') activeToast = t;
+    if (duration > 0 && type !== 'info') setTimeout(() => removeToast(t), duration);
+  }
+
+  /* ---------- tabs ---------- */
+  function showTab(tab) {
+    activeTab = tab;
+    ['console', 'files', 'github', 'startup', 'profile'].forEach(t => {
+      $(t + '-tab').classList.toggle('hidden', t !== tab);
+      $('tab-' + t).setAttribute('aria-selected', t === tab ? 'true' : 'false');
+    });
+    if (tab === 'files') loadFileList(currentFolder);
+    if (tab === 'github') loadGitLogs();
+    if (tab === 'startup') loadStartup();
+  }
+
+  /* ---------- server controls ---------- */
+  function runServer() {
+    showToast('Starting server...', 'info', 0);
+    fetch(`/api/run/${currentServerId}`, {method: 'POST'}).then(r => r.json()).then(d => {
+      if (d.status === 'success') { showToast('Server started', 'success', 3000); setTimeout(() => location.reload(), 1500); }
+      else showToast(d.msg, 'error', 4000);
+    }).catch(() => showToast('Connection failed', 'error', 4000));
+  }
+  function stopServer() {
+    showToast('Stopping server...', 'info', 0);
+    fetch(`/api/stop/${currentServerId}`, {method: 'POST'}).then(r => r.json()).then(d => {
+      if (d.status === 'success') { showToast('Server stopped', 'warning', 3000); setTimeout(() => location.reload(), 1500); }
+      else showToast(d.msg, 'error', 4000);
+    }).catch(() => showToast('Connection failed', 'error', 4000));
+  }
+  function restartServer() {
+    showToast('Restarting...', 'info', 0);
+    fetch(`/api/stop/${currentServerId}`, {method: 'POST'}).then(() => {
+      setTimeout(() => {
+        fetch(`/api/run/${currentServerId}`, {method: 'POST'}).then(r => r.json()).then(d => {
+          if (d.status === 'success') { showToast('Server restarted', 'success', 3000); setTimeout(() => location.reload(), 1500); }
+          else showToast(d.msg, 'error', 4000);
+        });
+      }, 2000);
+    });
+  }
+  function clearLogs() {
+    fetch(`/api/clear_logs/${currentServerId}`, {method: 'POST'}).then(r => r.json()).then(d => {
+      if (d.status === 'success') { $('logs').textContent = 'Log cleared.'; showToast('Log cleared', 'success', 2000); }
+      else showToast(d.msg, 'error', 3000);
+    }).catch(() => showToast('Could not clear the log', 'error', 3000));
+  }
+  function sendCmd() {
+    const inp = $('cmdInput'); const val = inp.value.trim(); if (!val) return;
+    const time = new Date().toLocaleTimeString('en-US', {hour12: false});
+    const box = $('logs');
+    box.insertAdjacentHTML('beforeend', `\n<span class="y">[${esc(time)}] $ ${esc(val)}</span>`);
+    box.scrollTop = box.scrollHeight;
+    fetch('/api/command', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({cmd: val, server_id: currentServerId})}).then(() => { inp.value = ''; });
+  }
+
+  /* ---------- live data ---------- */
+  function updateStats() {
+    fetch(`/api/stats/${currentServerId}`).then(r => r.json()).then(d => {
+      $('cpuDisplay').textContent = d.cpu || '0%';
+      $('ramDisplay').textContent = d.ram || '0 MB';
+      $('netInDisplay').textContent = d.net_in || '0 KB';
+      $('netOutDisplay').textContent = d.net_out || '0 KB';
+      const running = (d.status || 'stopped') === 'running';
+      const pill = $('statusDisplay');
+      pill.textContent = running ? 'Running' : 'Stopped';
+      pill.className = 'pill ' + (running ? 'pill-ok' : 'pill-off');
+      $('beat').classList.toggle('is-running', running);
+    });
+  }
+  function loadLogs() {
+    fetch(`/api/logs/${currentServerId}`).then(r => r.json()).then(d => {
+      const box = $('logs');
+      const stick = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+      box.textContent = d.logs || 'No output yet.';
+      if (stick) box.scrollTop = box.scrollHeight;
+    });
+  }
+
+  /* ---------- files ---------- */
+  function navigateTo(folder) { currentFolder = folder; loadFileList(folder); }
+  function updateBreadcrumb() {
+    const parts = currentFolder.split('/').filter(Boolean);
+    let html = parts.length ? '<a data-nav="">root</a>' : '<span>root</span>';
+    let path = '';
+    parts.forEach((p, i) => {
+      path += (path ? '/' : '') + p;
+      html += ' / ' + (i === parts.length - 1 ? `<span>${esc(p)}</span>` : `<a data-nav="${esc(path)}">${esc(p)}</a>`);
+    });
+    $('currentPathDisplay').innerHTML = html;
+  }
+  $('currentPathDisplay') && $('currentPathDisplay').addEventListener('click', e => {
+    const a = e.target.closest('[data-nav]'); if (a) navigateTo(a.dataset.nav);
+  });
+
+  function loadFileList(folder = '') {
+    currentFolder = folder;
+    updateBreadcrumb();
+    let url = `/api/files/${currentServerId}`;
+    if (folder) url += `?folder=${encodeURIComponent(folder)}`;
+    fetch(url).then(r => r.json()).then(data => {
+      let h = '';
+      if (folder) {
+        const parent = folder.split('/').slice(0, -1).join('/');
+        h += `<div class="file dir" data-open="${esc(parent)}"><span class="kind dir">..</span><span class="name">Back</span></div>`;
+      }
+      if (!data.files || data.files.length === 0) {
+        h += '<div class="empty">This folder is empty.</div>';
+        $('fileList').innerHTML = h; return;
+      }
+      data.files.forEach((f, i) => {
+        const menuId = 'menu-' + i;
+        let items = '';
+        if (f.is_dir) {
+          items = `<button data-act="rename" data-name="${esc(f.name)}">Rename</button><button class="bad" data-act="delete" data-name="${esc(f.name)}">Delete</button>`;
+          const path = folder ? folder + '/' + f.name : f.name;
+          h += `<div class="file dir" data-open="${esc(path)}"><span class="kind dir">dir</span><span class="name is-dir">${esc(f.name)}</span><span class="meta when">${esc(f.modified)}</span>${menu(menuId, items)}</div>`;
+        } else {
+          const isZip = f.name.endsWith('.zip');
+          let size = (f.size / 1024).toFixed(1) + ' KB';
+          if (f.size > 1024 * 1024) size = (f.size / (1024 * 1024)).toFixed(1) + ' MB';
+          items = (isZip ? `<button data-act="unzip" data-name="${esc(f.name)}">Extract</button>` : `<button data-act="edit" data-name="${esc(f.name)}">Edit</button>`) +
+            `<button data-act="rename" data-name="${esc(f.name)}">Rename</button><button class="bad" data-act="delete" data-name="${esc(f.name)}">Delete</button>`;
+          h += `<div class="file"><span class="kind ${isZip ? 'zip' : ''}">${isZip ? 'zip' : 'file'}</span><span class="name">${esc(f.name)}</span><span class="meta">${size}</span><span class="meta when">${esc(f.modified)}</span>${menu(menuId, items)}</div>`;
+        }
+      });
+      $('fileList').innerHTML = h;
+    });
+  }
+  function menu(id, items) {
+    return `<div class="menu"><button class="btn btn-quiet btn-sm" data-menu="${id}" aria-label="File actions">&#8942;</button><div class="menu-list" id="${id}">${items}</div></div>`;
+  }
+  $('fileList') && $('fileList').addEventListener('click', e => {
+    const mb = e.target.closest('[data-menu]');
+    if (mb) {
+      e.stopPropagation();
+      document.querySelectorAll('.menu-list').forEach(m => { if (m.id !== mb.dataset.menu) m.classList.remove('show'); });
+      $(mb.dataset.menu).classList.toggle('show');
+      return;
+    }
+    const act = e.target.closest('[data-act]');
+    if (act) {
+      e.stopPropagation();
+      document.querySelectorAll('.menu-list').forEach(m => m.classList.remove('show'));
+      const n = act.dataset.name;
+      ({edit: editFile, rename: renameFilePrompt, delete: deleteFile, unzip: unzipFile})[act.dataset.act](n);
+      return;
+    }
+    const open = e.target.closest('[data-open]');
+    if (open) navigateTo(open.dataset.open);
+  });
+
+  function uploadFile() {
+    const f = $('fileInput').files[0]; if (!f) return;
+    if (f.size > MAX_FILE_SIZE) { showToast(`File too large. The limit is ${MAX_FILE_SIZE / (1024 * 1024)} MB.`, 'error', 4000); $('fileInput').value = ''; return; }
+    const fd = new FormData(); fd.append('file', f);
+    if (currentFolder) fd.append('folder', currentFolder);
+    showToast('Uploading...', 'info', 0);
+    fetch(`/api/upload/${currentServerId}`, {method: 'POST', body: fd}).then(() => {
+      loadFileList(currentFolder); $('fileInput').value = '';
+      showToast('Uploaded', 'success', 2000);
+    }).catch(() => showToast('Upload failed', 'error', 3000));
+  }
+  function createFolder() {
+    const n = prompt('Folder name:');
+    if (n) {
+      const p = currentFolder ? currentFolder + '/' + n : n;
+      fetch(`/api/create_folder/${currentServerId}`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({foldername: p})}).then(() => loadFileList(currentFolder));
+    }
+  }
+  function createFile() {
+    const n = prompt('File name:', 'newfile.py');
+    if (n) {
+      const p = currentFolder ? currentFolder + '/' + n : n;
+      fetch(`/api/file/${currentServerId}`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({filename: p, content: '# New file'})}).then(() => loadFileList(currentFolder));
+    }
+  }
+  function unzipFile(name) {
+    const p = currentFolder ? currentFolder + '/' + name : name;
+    showToast('Extracting...', 'info', 0);
+    fetch(`/api/unzip/${currentServerId}`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({filename: p})})
+      .then(r => r.json()).then(d => {
+        if (d.status === 'success') { showToast('Extracted', 'success', 3000); loadFileList(currentFolder); }
+        else showToast(d.msg || 'Could not extract the file', 'error', 3000);
+      });
+  }
+  function renameFilePrompt(oldName) {
+    const newName = prompt('New name:', oldName);
+    if (newName && newName !== oldName) {
+      const oldPath = currentFolder ? currentFolder + '/' + oldName : oldName;
+      const newPath = currentFolder ? currentFolder + '/' + newName : newName;
+      fetch(`/api/rename/${currentServerId}`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({old_name: oldPath, new_name: newPath})}).then(r => r.json()).then(d => {
+        if (d.success) { showToast('Renamed', 'success', 2000); loadFileList(currentFolder); }
+        else showToast(d.error || 'Could not rename', 'error', 3000);
+      });
+    }
+  }
+  function editFile(name) {
+    editingFile = currentFolder ? currentFolder + '/' + name : name;
+    fetch(`/api/file/${currentServerId}?filename=${encodeURIComponent(editingFile)}`).then(r => r.json()).then(d => {
+      $('editor').value = d.content || '';
+      $('editTitle').textContent = editingFile;
+      $('editModal').classList.remove('hidden');
+    });
+  }
+  function saveFileContent() {
+    fetch(`/api/file/${currentServerId}`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({filename: editingFile, content: $('editor').value})})
+      .then(() => { closeEdit(); loadFileList(currentFolder); showToast('File saved', 'success', 2000); });
+  }
+  function deleteFile(name) {
+    const p = currentFolder ? currentFolder + '/' + name : name;
+    if (confirm(`Delete "${name}"?`)) {
+      fetch(`/api/file/${currentServerId}`, {method: 'DELETE', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({filename: p})}).then(() => loadFileList(currentFolder));
+    }
+  }
+  function closeEdit() { $('editModal').classList.add('hidden'); editingFile = null; }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('editModal').classList.contains('hidden')) closeEdit(); });
+
+  /* ---------- startup ---------- */
+  function loadStartup() {
+    fetch(`/api/get_startup/${currentServerId}`).then(r => r.json()).then(d => {
+      $('mainFileInput').value = d.main_file || 'main.py';
+      $('requirementsInput').value = d.requirements_file || '';
+    });
+  }
+  function saveStartup() {
+    fetch(`/api/set_startup/${currentServerId}`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({main_file: $('mainFileInput').value.trim(), requirements_file: $('requirementsInput').value.trim() || null})})
+      .then(() => showToast('Startup saved', 'success', 2000));
+  }
+
+  /* ---------- github ---------- */
+  function deployRepo(isPrivate) {
+    const repoUrl = (isPrivate ? $('privateRepoUrl') : $('publicRepoUrl')).value.trim();
+    const token = isPrivate ? $('accessToken').value.trim() : '';
+    if (!repoUrl) { showToast('Enter the repository URL', 'error'); return; }
+    if (isPrivate && !token) { showToast('Enter an access token for a private repository', 'error'); return; }
+    showToast('Starting deployment...', 'info', 0);
+    fetch(`/api/github/deploy/${currentServerId}`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({repo_url: repoUrl, access_token: token, is_private: isPrivate})})
+      .then(r => r.json()).then(d => {
+        if (d.status === 'success') {
+          showToast('Deployment started. Watch the log below.', 'success');
+          loadGitLogs();
+          setTimeout(() => { if (activeTab === 'files') loadFileList(currentFolder); }, 5000);
+        } else showToast(d.msg || 'Deployment failed', 'error');
+      }).catch(() => showToast('Connection failed', 'error'));
+  }
+  function loadGitLogs() {
+    fetch(`/api/github/logs/${currentServerId}`).then(r => r.json()).then(d => {
+      const el = $('gitLogs');
+      if (el) { el.textContent = d.logs || 'Ready to deploy.'; el.scrollTop = el.scrollHeight; }
+    });
+  }
+  function clearGitLogs() {
+    fetch(`/api/github/clear_logs/${currentServerId}`, {method: 'POST'}).then(() => {
+      $('gitLogs').textContent = 'Log cleared. Ready to deploy.';
+      showToast('Log cleared', 'success', 2000);
+    });
+  }
+
+  /* ---------- account ---------- */
+  function updateCredentials() {
+    const cur = $('currentPassword').value, np = $('newPassword').value, cf = $('confirmPassword').value;
+    if (!cur || !np || !cf) { showToast('Fill in all three password fields', 'error'); return; }
+    if (np !== cf) { showToast('The new passwords do not match', 'error'); return; }
+    if (np.length < 4) { showToast('The new password needs at least 4 characters', 'error'); return; }
+    showToast('Changing password...', 'info', 0);
+    fetch(`/api/change_password/${currentServerId}`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({current_password: cur, new_password: np})})
+      .then(r => r.json()).then(d => {
+        if (d.success) {
+          showToast('Password changed', 'success');
+          ['currentPassword', 'newPassword', 'confirmPassword'].forEach(id => $(id).value = '');
+        } else showToast(d.error || 'Could not change the password', 'error');
+      }).catch(() => showToast('Connection failed', 'error'));
+  }
+
+  if (currentServerId) {
+    loadLogs(); updateStats();
+    setInterval(() => { if (activeTab === 'console') loadLogs(); updateStats(); if (activeTab === 'github') loadGitLogs(); }, 3000);
+  }
+</script>
+</body>
+</html>

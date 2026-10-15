@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NpcHosting: Python bot hosting</title>
+<meta name="description" content="Host a Telegram or Discord bot written in Python. Upload it, press Start, watch the log. Free with 5 referrals.">
+<link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+<style>
+  .nav { position: sticky; top: 0; z-index: 20; background: rgba(236,238,241,.92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+  .nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+  .nav-links { display: none; gap: 28px; font-size: 15px; font-weight: 500; color: var(--ink-2); }
+  .nav-links a { text-decoration: none; }
+  .nav-links a:hover { color: var(--ink); }
+  @media (min-width: 820px) { .nav-links { display: flex; } }
+
+  .hero { padding: 48px 0 56px; }
+  .hero .wrap { display: grid; gap: 40px; }
+  @media (min-width: 900px) { .hero { padding: 88px 0 96px; } .hero .wrap { grid-template-columns: 1.05fr 1fr; align-items: center; gap: 64px; } }
+  .hero h1 { font-size: clamp(34px, 6.4vw, 60px); line-height: 1.04; letter-spacing: -0.035em; font-weight: 800; max-width: 14ch; }
+  .hero .lede { margin-top: 20px; font-size: 18px; color: var(--ink-2); max-width: 46ch; }
+  .hero .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+  .hero .proof { margin-top: 20px; font-size: 14px; color: var(--ink-3); }
+
+  .term { background: var(--console); border-radius: 14px; overflow: hidden; box-shadow: 0 24px 60px -24px rgba(17,21,27,.45); }
+  .term-bar { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #222a35; color: var(--console-dim); font-family: var(--mono); font-size: 12px; }
+  .term-bar .state { color: var(--console-ok); display: inline-flex; align-items: center; gap: 6px; }
+  .term-bar .state::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--console-ok); }
+  .term-body { padding: 18px 16px 22px; font-family: var(--mono); font-size: 13px; line-height: 1.8; color: var(--console-ink); min-height: 290px; overflow: hidden; }
+  .term-body div { opacity: 0; animation: line-in .01s forwards; white-space: nowrap; }
+  .term-body .t { color: var(--console-dim); }
+  .term-body .g { color: var(--console-ok); }
+  .term-body .y { color: var(--console-warn); }
+  @keyframes line-in { to { opacity: 1; } }
+  .term-body div:nth-child(1) { animation-delay: .3s; }
+  .term-body div:nth-child(2) { animation-delay: .9s; }
+  .term-body div:nth-child(3) { animation-delay: 1.3s; }
+  .term-body div:nth-child(4) { animation-delay: 1.5s; }
+  .term-body div:nth-child(5) { animation-delay: 1.9s; }
+  .term-body div:nth-child(6) { animation-delay: 2.6s; }
+  .term-body div:nth-child(7) { animation-delay: 3.3s; }
+  .term-body div:nth-child(8) { animation-delay: 4s; }
+  @media (prefers-reduced-motion: reduce) { .term-body div { opacity: 1; animation: none; } }
+
+  section { padding: 56px 0; }
+  .band { background: var(--surface); border-block: 1px solid var(--line); }
+  h2.title { font-size: clamp(26px, 4vw, 38px); line-height: 1.1; letter-spacing: -0.03em; font-weight: 800; max-width: 20ch; }
+  .sub { margin-top: 10px; color: var(--ink-2); max-width: 52ch; }
+
+  .specs { margin-top: 32px; display: grid; gap: 0 56px; }
+  @media (min-width: 760px) { .specs { grid-template-columns: 1fr 1fr; } }
+  .spec { padding: 20px 0; border-top: 1px solid var(--line-strong); }
+  .spec dt { font-weight: 700; font-size: 18px; letter-spacing: -0.01em; }
+  .spec dd { margin: 6px 0 0; color: var(--ink-2); max-width: 46ch; }
+
+  .plans-wrap { margin-top: 32px; overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+  .plans { min-width: 0; table-layout: fixed; }
+  .plans th:first-child { width: 22%; }
+  @media (max-width: 559px) { .plans th, .plans td { padding: 12px 6px; font-size: 14px; } .plans thead th { font-size: 13px; letter-spacing: -0.01em; } .plans .price { font-size: 22px; } .plans tbody th { white-space: normal; } .plans tfoot .btn { min-height: 40px; font-size: 13px; padding: 0 4px; } }
+  .plans th, .plans td { padding: 14px 16px; text-align: left; font-size: 15px; }
+  .plans thead th { font-size: 17px; font-weight: 800; color: var(--ink); border-bottom: 1px solid var(--line-strong); }
+  .plans tbody th { color: var(--ink-3); font-weight: 500; }
+  .plans .pick { background: var(--accent-wash); }
+  .plans .tag { display: block; font-size: 12px; font-weight: 600; color: var(--accent-deep); margin-bottom: 2px; }
+  .plans .price { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
+  .plans tfoot td { border-bottom: 0; padding-top: 18px; padding-bottom: 18px; }
+  .plans tfoot .btn { width: 100%; padding: 0 10px; }
+
+  .steps { list-style: none; counter-reset: s; margin: 32px 0 0; padding: 0; display: grid; gap: 0; max-width: 640px; }
+  .steps li { counter-increment: s; display: grid; grid-template-columns: 44px 1fr; gap: 4px 12px; padding: 20px 0; border-top: 1px solid var(--line-strong); }
+  .steps li::before { content: counter(s); grid-row: span 2; width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .steps strong { font-size: 18px; letter-spacing: -0.01em; }
+  .steps span { color: var(--ink-2); }
+
+  .faq { margin-top: 28px; max-width: 720px; }
+  details { border-top: 1px solid var(--line-strong); }
+  details:last-child { border-bottom: 1px solid var(--line-strong); }
+  summary { list-style: none; cursor: pointer; padding: 18px 32px 18px 0; font-weight: 600; font-size: 17px; position: relative; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: '+'; position: absolute; right: 4px; top: 14px; font-size: 24px; font-weight: 400; color: var(--ink-3); }
+  details[open] summary::after { content: '\2212'; }
+  details p { padding: 0 0 20px; color: var(--ink-2); max-width: 60ch; }
+
+  .cta { text-align: left; }
+  .cta .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+
+  footer { padding: 36px 0 44px; border-top: 1px solid var(--line-strong); color: var(--ink-2); font-size: 15px; }
+  footer .wrap { display: grid; gap: 28px; }
+  @media (min-width: 760px) { footer .wrap { grid-template-columns: 1.4fr 1fr 1fr; } }
+  footer h4 { font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 8px; }
+  footer ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+  footer a { text-decoration: none; }
+  footer a:hover { color: var(--accent-deep); text-decoration: underline; }
+  footer .legal { grid-column: 1 / -1; color: var(--ink-3); font-size: 13px; padding-top: 18px; border-top: 1px solid var(--line); }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="/" aria-label="NpcHosting home">
+      <svg viewBox="0 0 34 20" aria-hidden="true"><path d="M1 10h9l3-7 5 14 3-7h12"/></svg>
+      <span>npc<b>hosting</b></span>
+    </a>
+    <nav class="nav-links" aria-label="Sections">
+      <a href="#features">Features</a>
+      <a href="#plans">Plans</a>
+      <a href="#free">Free panel</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <a class="btn btn-primary btn-sm" href="https://t.me/zip_extrctor_bot" target="_blank" rel="noopener">Get a panel</a>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <div class="wrap">
+      <div>
+        <h1>Your bot keeps running after you close the laptop.</h1>
+        <p class="lede">Upload your Python bot, press Start and read its log from your browser. Works for Telegram and Discord bots.</p>
+        <div class="actions">
+          <a class="btn btn-primary" href="https://t.me/zip_extrctor_bot" target="_blank" rel="noopener">Get a free panel</a>
+          <a class="btn btn-quiet" href="https://t.me/npchosting_codex" target="_blank" rel="noopener">Talk to the developer</a>
+        </div>
+        <p class="proof">500+ panels are running on NpcHosting right now.</p>
+      </div>
+
+      <div class="term" role="img" aria-label="Example console output of a bot running on NpcHosting">
+        <div class="term-bar"><span>main.py</span><span class="state">running</span></div>
+        <div class="term-body">
+          <div><span class="t">$</span> python main.py</div>
+          <div>========================================</div>
+          <div>Bot is running on NpcHosting</div>
+          <div>Server is ready!</div>
+          <div>========================================</div>
+          <div><span class="t">[16:16:02]</span> <span class="g">Heartbeat #1</span> | Server active</div>
+          <div><span class="t">[16:16:12]</span> <span class="g">Heartbeat #2</span> | Server active</div>
+          <div><span class="t">[16:16:22]</span> <span class="g">Heartbeat #3</span> | Server active</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section id="features" class="band">
+    <div class="wrap">
+      <h2 class="title">What you get with a panel</h2>
+      <dl class="specs">
+        <div class="spec"><dt>Upload or pull from GitHub</dt><dd>Drop in a file, extract a ZIP, or deploy a public or private repository straight into your panel.</dd></div>
+        <div class="spec"><dt>Live console</dt><dd>Read your bot's output as it prints and run shell commands without leaving the page.</dd></div>
+        <div class="spec"><dt>File manager</dt><dd>Create, edit, rename and delete files in the browser.</dd></div>
+        <div class="spec"><dt>Restart after a crash</dt><dd>A crashed bot starts again on its own. After three crashes within a minute it stays down, so a broken deploy can't loop forever.</dd></div>
+        <div class="spec"><dt>CPU limit per panel</dt><dd>A bot that stays above its CPU limit for ten seconds is stopped, so one panel can't slow the others.</dd></div>
+        <div class="spec"><dt>Packages install themselves</dt><dd>Python 3.12+ with pip. Everything in your requirements.txt is installed on start. CPU, RAM and network use refresh every three seconds.</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <section id="plans">
+    <div class="wrap">
+      <h2 class="title">Plans</h2>
+      <p class="sub">Start free with referrals. Pay only if you want more time or more power.</p>
+      <div class="plans-wrap">
+        <table class="plans">
+          <thead>
+            <tr>
+              <th scope="col"><span class="sr-only">Plan</span></th>
+              <th scope="col">Free</th>
+              <th scope="col" class="pick"><span class="tag">Most chosen</span>Standard</th>
+              <th scope="col">Premium</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">Price</th><td class="price">$0</td><td class="price pick">$2</td><td class="price">$5</td></tr>
+            <tr><th scope="row">Valid for</th><td>3 days</td><td class="pick">7 days</td><td>30 days</td></tr>
+            <tr><th scope="row">RAM / disk</th><td>1 GB / 1 GB</td><td class="pick">1 GB / 1 GB</td><td>2 GB / 2 GB</td></tr>
+            <tr><th scope="row">CPU limit</th><td>30%</td><td class="pick">50%</td><td>80%</td></tr>
+            <tr><th scope="row">How to get it</th><td>Refer 5 people</td><td class="pick">Buy it</td><td>Buy it</td></tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td></td>
+              <td><a class="btn btn-quiet btn-sm" href="https://t.me/zip_extrctor_bot" target="_blank" rel="noopener">Get free</a></td>
+              <td class="pick"><a class="btn btn-primary btn-sm" href="https://t.me/npchosting_codex" target="_blank" rel="noopener">Buy</a></td>
+              <td><a class="btn btn-quiet btn-sm" href="https://t.me/npchosting_codex" target="_blank" rel="noopener">Buy</a></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="free" class="band">
+    <div class="wrap">
+      <h2 class="title">Get a free panel in three steps</h2>
+      <ol class="steps">
+        <li><strong>Start the Telegram bot</strong><span>Open it and verify your account.</span></li>
+        <li><strong>Share your referral link</strong><span>Five people need to join through it.</span></li>
+        <li><strong>Create your panel</strong><span>Upload your bot and press Start.</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="faq">
+    <div class="wrap">
+      <h2 class="title">Questions</h2>
+      <div class="faq">
+        <details><summary>How do I get a free panel?</summary><p>Share your referral link. When 5 friends join the Telegram bot through it, you can create a free panel.</p></details>
+        <details><summary>How fast is the setup?</summary><p>A new panel is ready right away. Upload your bot file and press Start.</p></details>
+        <details><summary>What happens when my panel expires?</summary><p>The panel stops. Refer 5 more people for another free one, or buy a longer plan.</p></details>
+        <details><summary>Which Python version do you run?</summary><p>Python 3.12 or newer. Packages listed in your requirements.txt are installed with pip automatically.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <section class="band cta">
+    <div class="wrap">
+      <h2 class="title">Put your bot online today</h2>
+      <p class="sub">Hundreds of developers already host their bots here.</p>
+      <div class="actions">
+        <a class="btn btn-primary" href="https://t.me/zip_extrctor_bot" target="_blank" rel="noopener">Get a free panel</a>
+        <a class="btn btn-quiet" href="https://t.me/npchosting_codex" target="_blank" rel="noopener">Talk to the developer</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div>
+      <a class="brand" href="/">
+        <svg viewBox="0 0 34 20" aria-hidden="true"><path d="M1 10h9l3-7 5 14 3-7h12"/></svg>
+        <span>npc<b>hosting</b></span>
+      </a>
+      <p style="margin-top:10px;max-width:34ch">Python bot hosting, made in Bangladesh.</p>
+    </div>
+    <div>
+      <h4>Links</h4>
+      <ul>
+        <li><a href="https://t.me/zip_extrctor_bot" target="_blank" rel="noopener">Telegram bot</a></li>
+        <li><a href="https://t.me/npchosting_codex" target="_blank" rel="noopener">Support</a></li>
+        <li><a href="https://t.me/npchosting_API" target="_blank" rel="noopener">Channel</a></li>
+        <li><a href="https://t.me/npchosting_like_group" target="_blank" rel="noopener">Group</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>Contact</h4>
+      <ul>
+        <li>@npchosting_codex on Telegram</li>
+        <li>npchosting-hosting.onrender.com</li>
+      </ul>
+    </div>
+    <p class="legal">&copy; 2026 NpcHosting. All rights reserved.</p>
+  </div>
+</footer>
+
+</body>
+</html>

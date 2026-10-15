@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in | NpcHosting</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+<style>
+  body { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; padding: 24px 16px; }
+  .shell { width: 100%; max-width: 400px; margin: 0 auto; }
+  .shell .brand { margin-bottom: 20px; }
+  .card { padding: 28px 24px 24px; }
+  .card h1 { font-size: 26px; letter-spacing: -0.03em; font-weight: 800; }
+  .card .lead { margin: 6px 0 22px; color: var(--ink-2); }
+  .alert { background: var(--bad-wash); color: #8f1f1f; border: 1px solid #efbcbc; border-radius: 8px; padding: 10px 12px; margin-bottom: 18px; font-size: 15px; }
+  .back { display: inline-block; margin-top: 18px; font-size: 14px; color: var(--ink-3); }
+</style>
+</head>
+<body>
+  <div class="shell">
+    <a class="brand" href="/">
+      <svg viewBox="0 0 34 20" aria-hidden="true"><path d="M1 10h9l3-7 5 14 3-7h12"/></svg>
+      <span>npc<b>hosting</b></span>
+    </a>
+    <div class="panel card">
+      <h1>Sign in</h1>
+      <p class="lead">Use the username and password for your panel.</p>
+
+      {% if error %}
+      <div class="alert" role="alert">{{ error }}</div>
+      {% endif %}
+
+      <form method="POST">
+        <label class="field"><span>Username</span>
+          <input class="input" type="text" name="username" autocomplete="username" autocapitalize="none" required autofocus>
+        </label>
+        <label class="field"><span>Password</span>
+          <input class="input" type="password" name="password" autocomplete="current-password" required>
+        </label>
+        <button class="btn btn-primary btn-block" type="submit">Sign in</button>
+      </form>
+    </div>
+    <a class="back link" href="/">Back to npchosting</a>
+  </div>
+</body>
+</html>

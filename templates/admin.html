@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin | NpcHosting</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<style>
+  .top { background: var(--surface); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 20; }
+  .top .wrap { display: flex; align-items: center; justify-content: space-between; height: 64px; gap: 12px; }
+  .top .who { color: var(--ink-3); font-size: 14px; }
+  main.wrap { padding-top: 24px; padding-bottom: 56px; display: grid; gap: 24px; }
+
+  .totals { display: grid; grid-template-columns: 1fr 1fr; }
+  @media (min-width: 720px) { .totals { grid-template-columns: repeat(4, 1fr); } }
+  .total { padding: 18px 20px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .total:nth-child(2n) { border-right: 0; }
+  .total:nth-child(n+3) { border-bottom: 0; }
+  @media (min-width: 720px) { .total { border-bottom: 0; border-right: 1px solid var(--line); } .total:nth-child(2n) { border-right: 1px solid var(--line); } .total:last-child { border-right: 0; } }
+  .total .n { font-size: 34px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
+  .total .l { color: var(--ink-3); font-size: 14px; }
+  .total.live .n { color: var(--ok); }
+
+  .grid { display: grid; gap: 0 16px; }
+  @media (min-width: 720px) { .grid { grid-template-columns: repeat(3, 1fr); } }
+  .span-all { grid-column: 1 / -1; }
+  .cpu-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .cpu-row input[type=range] { flex: 1 1 200px; }
+  .cpu-val { font-weight: 800; font-size: 20px; min-width: 52px; text-align: right; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { background: var(--surface); border: 1px solid var(--line-strong); border-radius: 999px; min-height: 36px; padding: 0 14px; font-size: 14px; font-weight: 500; }
+  .chip:hover { border-color: var(--ink); }
+  .chip.on { background: var(--accent-wash); border-color: var(--accent); color: var(--accent-deep); }
+  .form-foot { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; margin-top: 8px; padding-top: 20px; border-top: 1px solid var(--line); }
+  .templates { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .templates .lbl { font-size: 14px; color: var(--ink-3); margin-right: 4px; }
+
+  .cell-user { display: flex; align-items: center; gap: 10px; }
+  .pw { font-family: var(--mono); font-size: 14px; color: var(--ink-2); }
+  .icon-btn { background: none; border: 0; padding: 4px 6px; font-size: 13px; font-weight: 600; color: var(--accent-deep); border-radius: 6px; text-decoration: underline; text-underline-offset: 3px; }
+  .cfg { color: var(--ink-2); font-size: 14px; }
+  .cfg b { font-weight: 600; color: var(--ink); }
+  .cpu-cell { display: flex; align-items: center; gap: 10px; }
+  .meter { width: 60px; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+  .meter i { display: block; height: 100%; border-radius: 3px; }
+  .empty { padding: 40px 20px; text-align: center; color: var(--ink-3); }
+  .actions { display: flex; gap: 8px; }
+
+  @media (max-width: 859px) {
+    .servers thead { display: none; }
+    .servers, .servers tbody, .servers tr, .servers td { display: block; width: 100%; }
+    .servers tr { padding: 14px 16px; border-bottom: 1px solid var(--line); }
+    .servers tbody tr:last-child { border-bottom: 0; }
+    .servers td { border: 0; padding: 6px 0; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+    .servers td::before { content: attr(data-label); color: var(--ink-3); font-size: 13px; font-weight: 600; flex-shrink: 0; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="/admin">
+      <svg viewBox="0 0 34 20" aria-hidden="true"><path d="M1 10h9l3-7 5 14 3-7h12"/></svg>
+      <span>npc<b>hosting</b></span>
+    </a>
+    <div class="row" style="gap:14px">
+      <span class="who">Admin</span>
+      <a class="btn btn-quiet btn-sm" href="/logout">Sign out</a>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="panel totals" aria-label="Totals">
+    <div class="total"><div class="n" id="totalUsers">{{ users|length }}</div><div class="l">Users</div></div>
+    <div class="total"><div class="n" id="totalServers">{{ total_servers }}</div><div class="l">Servers</div></div>
+    <div class="total live"><div class="n" id="totalRunning">{{ total_running }}</div><div class="l">Running</div></div>
+    <div class="total"><div class="n" id="totalStopped">{{ total_servers - total_running }}</div><div class="l">Stopped</div></div>
+  </section>
+
+  <section class="panel" aria-labelledby="create-h">
+    <div class="panel-head"><div><h2 id="create-h">Create a server</h2><p>Creates the login and an empty bot folder.</p></div></div>
+    <div class="panel-body">
+      <div class="grid" id="createForm">
+        <label class="field"><span>Username</span>
+          <input class="input" type="text" id="newUsername" autocomplete="off" autocapitalize="none" placeholder="e.g. rafi_bot">
+        </label>
+        <label class="field"><span>Password</span>
+          <input class="input mono" type="text" id="newPassword" autocomplete="off" placeholder="Choose one or use a template">
+        </label>
+        <label class="field"><span>Type</span>
+          <select class="select" id="serverType">
+            <option value="python">Python bot</option>
+            <option value="node">Node.js</option>
+            <option value="static">Static website</option>
+          </select>
+        </label>
+        <label class="field"><span>RAM</span>
+          <select class="select" id="ram">
+            <option value="128MB">128 MB</option>
+            <option value="256MB">256 MB</option>
+            <option value="512MB" selected>512 MB</option>
+            <option value="1GB">1 GB</option>
+            <option value="2GB">2 GB</option>
+            <option value="4GB">4 GB</option>
+          </select>
+        </label>
+        <label class="field"><span>Disk</span>
+          <select class="select" id="disk">
+            <option value="512MB">512 MB</option>
+            <option value="1GB" selected>1 GB</option>
+            <option value="2GB">2 GB</option>
+            <option value="5GB">5 GB</option>
+            <option value="10GB">10 GB</option>
+          </select>
+        </label>
+        <label class="field"><span>Valid for (days)</span>
+          <input class="input" type="number" inputmode="numeric" id="expiryDays" value="30" min="1" max="365">
+        </label>
+
+        <div class="field span-all">
+          <span>CPU limit</span>
+          <div class="cpu-row">
+            <input type="range" id="cpuLimit" min="10" max="100" value="80" aria-label="CPU limit percent">
+            <span class="cpu-val" id="cpuLimitValue">80%</span>
+            <div class="chips" role="group" aria-label="CPU presets">
+              <button type="button" class="chip" data-cpu="30">30%</button>
+              <button type="button" class="chip" data-cpu="50">50%</button>
+              <button type="button" class="chip on" data-cpu="80">80%</button>
+              <button type="button" class="chip" data-cpu="100">100%</button>
+            </div>
+          </div>
+          <small>The server stops if its CPU use averages above this for 10 seconds.</small>
+        </div>
+      </div>
+
+      <div class="form-foot">
+        <div class="templates">
+          <span class="lbl">Fill from a template</span>
+          <button type="button" class="chip" data-tpl="discord">Discord bot</button>
+          <button type="button" class="chip" data-tpl="telegram">Telegram bot</button>
+          <button type="button" class="chip" data-tpl="flask">Flask app</button>
+          <button type="button" class="chip" data-tpl="node">Node.js app</button>
+        </div>
+        <button class="btn btn-primary" id="createBtn" type="button">Create server</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="list-h">
+    <div class="panel-head">
+      <div><h2 id="list-h">Users and servers</h2><p>Every server, with its owner.</p></div>
+      <button class="btn btn-quiet btn-sm" type="button" onclick="location.reload()">Refresh</button>
+    </div>
+
+    {% set has_servers = users | selectattr('servers') | list | length > 0 %}
+    {% if not has_servers %}
+    <div class="empty">No servers yet. Create the first one above.</div>
+    {% else %}
+    <div class="table-scroll">
+      <table class="servers">
+        <thead>
+          <tr><th>User</th><th>Password</th><th>Login link</th><th>Plan</th><th>CPU limit</th><th>Status</th><th>Expires</th><th><span class="sr-only">Actions</span></th></tr>
+        </thead>
+        <tbody>
+        {% for user in users %}
+          {% for server in user.servers %}
+          {% set cpu = server.cpu_limit | default(80) %}
+          <tr>
+            <td data-label="User">
+              <span class="cell-user"><span class="avatar">{{ (user.username[0] | upper) if user.username else '?' }}</span><span class="mono">{{ user.username }}</span></span>
+            </td>
+            <td data-label="Password">
+              <span><span class="pw" id="pass-{{ server.server_id }}">&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;</span>
+              <button class="icon-btn" type="button" data-act="pw" data-id="{{ server.server_id }}" data-pass="{{ user.password }}">Show</button></span>
+            </td>
+            <td data-label="Login link">
+              <a class="link mono" href="{{ server.login_url }}" target="_blank" rel="noopener">{{ (server.server_id or '')[:12] }}</a>
+            </td>
+            <td data-label="Plan" class="cfg"><b>{{ server.type }}</b>, {{ server.ram }} RAM, {{ server.disk }} disk</td>
+            <td data-label="CPU limit">
+              <span class="cpu-cell">
+                <span class="meter" aria-hidden="true"><i style="width: {{ cpu }}%; background: {% if cpu <= 30 %}var(--ok){% elif cpu <= 60 %}#d9a100{% elif cpu <= 80 %}#e07b00{% else %}var(--bad){% endif %};"></i></span>
+                <b>{{ cpu }}%</b>
+                <button class="icon-btn" type="button" data-act="cpu" data-id="{{ server.server_id }}" data-cpu="{{ cpu }}">Change</button>
+              </span>
+            </td>
+            <td data-label="Status">
+              {% if server.rate_limit_exceeded %}<span class="pill pill-warn">Rate limited</span>
+              {% elif server.status == 'running' %}<span class="pill pill-ok">Running</span>
+              {% else %}<span class="pill pill-off">Stopped</span>{% endif %}
+            </td>
+            <td data-label="Expires"><span class="mono" style="font-size:14px">{{ server.expiry[:10] if server.expiry else 'N/A' }}</span></td>
+            <td data-label="Actions">
+              <span class="actions"><button class="btn btn-danger btn-sm" type="button" data-act="del" data-user="{{ user.username }}" data-id="{{ server.server_id }}">Delete</button></span>
+            </td>
+          </tr>
+          {% endfor %}
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </section>
+</main>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const swalBase = { background: '#ffffff', color: '#161a22', confirmButtonColor: '#2d3bf0', cancelButtonColor: '#6f7889' };
+
+  function setCPU(v) {
+    $('cpuLimit').value = v;
+    $('cpuLimitValue').textContent = v + '%';
+    document.querySelectorAll('[data-cpu].chip').forEach(c => c.classList.toggle('on', Number(c.dataset.cpu) === Number(v)));
+  }
+  $('cpuLimit').addEventListener('input', e => setCPU(e.target.value));
+  document.querySelectorAll('[data-cpu].chip').forEach(c => c.addEventListener('click', () => setCPU(c.dataset.cpu)));
+
+  function randomPassword() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const buf = new Uint32Array(12); crypto.getRandomValues(buf);
+    return Array.from(buf, n => chars[n % chars.length]).join('');
+  }
+  const suffix = () => Math.random().toString(36).slice(2, 6);
+  const TEMPLATES = {
+    discord:  { name: 'discord_bot_', type: 'python', ram: '256MB', cpu: 50 },
+    telegram: { name: 'telegram_bot_', type: 'python', ram: '128MB', cpu: 30 },
+    flask:    { name: 'flask_app_', type: 'python', ram: '512MB', cpu: 80 },
+    node:     { name: 'node_app_', type: 'node', ram: '256MB', cpu: 60 }
+  };
+  document.querySelectorAll('[data-tpl]').forEach(b => b.addEventListener('click', () => {
+    const t = TEMPLATES[b.dataset.tpl];
+    $('serverType').value = t.type; $('ram').value = t.ram; setCPU(t.cpu);
+    $('newUsername').value = t.name + suffix();
+    $('newPassword').value = randomPassword();
+  }));
+
+  $('createBtn').addEventListener('click', createServer);
+  function createServer() {
+    const payload = {
+      username: $('newUsername').value.trim(),
+      password: $('newPassword').value.trim(),
+      server_type: $('serverType').value,
+      ram: $('ram').value,
+      disk: $('disk').value,
+      expiry_days: parseInt($('expiryDays').value) || 30,
+      cpu_limit: parseInt($('cpuLimit').value) || 80
+    };
+    if (!payload.username || !payload.password) {
+      Swal.fire({ ...swalBase, title: 'Missing details', text: 'Enter a username and a password.', icon: 'error' });
+      return;
+    }
+    Swal.fire({ ...swalBase, title: 'Creating server', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    fetch('/admin/create_server', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
+      .then(r => r.json())
+      .then(d => {
+        if (!d.success) { Swal.fire({ ...swalBase, title: 'Could not create server', text: d.error || 'Something went wrong.', icon: 'error' }); return; }
+        Swal.fire({
+          ...swalBase, icon: 'success', title: 'Server created', confirmButtonText: 'Done',
+          html: `<div style="text-align:left;line-height:1.9;font-size:15px">
+            <div><b>Username</b> <code>${esc(d.username)}</code></div>
+            <div><b>Password</b> <code>${esc(d.password)}</code></div>
+            <div><b>CPU limit</b> ${esc(payload.cpu_limit)}%</div>
+            <div style="word-break:break-all"><b>Login link</b> <a href="${esc(d.login_url)}" target="_blank" rel="noopener">${esc(d.hostname.replace(/\/home$/, '/login'))}</a></div>
+          </div>`
+        }).then(() => location.reload());
+        $('newUsername').value = ''; $('newPassword').value = ''; setCPU(80);
+      })
+      .catch(() => Swal.fire({ ...swalBase, title: 'No connection', text: 'Could not reach the server.', icon: 'error' }));
+  }
+
+  function changeCPU(id, current) {
+    Swal.fire({
+      ...swalBase, title: 'CPU limit', text: 'Currently ' + current + '%', input: 'range',
+      inputAttributes: { min: '10', max: '100', step: '5' }, inputValue: current,
+      showCancelButton: true, confirmButtonText: 'Save',
+      didOpen: () => {
+        const range = Swal.getInput();
+        const out = document.createElement('div');
+        out.style.cssText = 'text-align:center;font-size:2em;font-weight:800;color:#2d3bf0;margin-top:8px';
+        out.textContent = range.value + '%';
+        range.parentNode.insertBefore(out, range.nextSibling);
+        range.addEventListener('input', () => { out.textContent = range.value + '%'; });
+      }
+    }).then(res => {
+      if (!res.isConfirmed) return;
+      const v = parseInt(res.value);
+      fetch('/admin/set_rate_limit/' + encodeURIComponent(id), { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ cpu_limit: v }) })
+        .then(r => r.json())
+        .then(d => {
+          if (d.success) { Swal.fire({ ...swalBase, title: 'Saved', text: 'CPU limit is now ' + v + '%.', icon: 'success', timer: 1200, showConfirmButton: false }).then(() => location.reload()); }
+          else Swal.fire({ ...swalBase, title: 'Not saved', text: d.error || 'Something went wrong.', icon: 'error' });
+        });
+    });
+  }
+
+  function deleteServer(username, id) {
+    Swal.fire({
+      ...swalBase, icon: 'warning', title: 'Delete this server?',
+      html: `<div style="line-height:1.8;font-size:15px"><div>User <b>${esc(username)}</b></div><div>Server <code>${esc(id)}</code></div><div style="margin-top:10px;color:#c62f2f">All its files are deleted and this can't be undone.</div></div>`,
+      showCancelButton: true, confirmButtonText: 'Delete server', confirmButtonColor: '#c62f2f'
+    }).then(res => {
+      if (!res.isConfirmed) return;
+      fetch('/admin/delete_server/' + encodeURIComponent(username) + '/' + encodeURIComponent(id), { method: 'POST' })
+        .then(() => Swal.fire({ ...swalBase, title: 'Deleted', icon: 'success', timer: 1000, showConfirmButton: false }).then(() => location.reload()));
+    });
+  }
+
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-act]');
+    if (!b) return;
+    const act = b.dataset.act;
+    if (act === 'pw') {
+      const el = $('pass-' + b.dataset.id);
+      const hidden = b.textContent === 'Show';
+      el.textContent = hidden ? b.dataset.pass : '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
+      b.textContent = hidden ? 'Hide' : 'Show';
+    } else if (act === 'cpu') changeCPU(b.dataset.id, parseInt(b.dataset.cpu));
+    else if (act === 'del') deleteServer(b.dataset.user, b.dataset.id);
+  });
+</script>
+</body>
+</html>
